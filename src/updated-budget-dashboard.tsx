@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { TrashIcon, PencilIcon, ChevronUpIcon, ChevronDownIcon, FunnelIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, PencilIcon, ChevronUpIcon, ChevronDownIcon, FunnelIcon, XMarkIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -185,6 +185,10 @@ const BudgetDashboard: React.FC = () => {
   // Add month selection state
   const [selectedMonth, setSelectedMonth] = useState<string>('2025-03');
 
+  // Add pagination state after other state declarations
+  const [currentPage, setCurrentPage] = useState(1);
+  const transactionsPerPage = 10;
+
   // Generate list of months for 2025
   const months = useMemo(() => {
     const monthsList = [];
@@ -282,6 +286,15 @@ const BudgetDashboard: React.FC = () => {
     
     return filtered;
   }, [currentMonthExpenses, expenseFilters, expenseSortConfig]);
+
+  // Add pagination logic after filteredAndSortedExpenses
+  const paginatedExpenses = useMemo(() => {
+    const startIndex = (currentPage - 1) * transactionsPerPage;
+    const endIndex = startIndex + transactionsPerPage;
+    return filteredAndSortedExpenses.slice(startIndex, endIndex);
+  }, [filteredAndSortedExpenses, currentPage]);
+
+  const totalPages = Math.ceil(filteredAndSortedExpenses.length / transactionsPerPage);
 
   // Sort income
   const sortedIncome = useMemo(() => {
@@ -618,13 +631,13 @@ const BudgetDashboard: React.FC = () => {
       <div className="flex justify-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
         <button
           onClick={() => startEditing('expense', expense)}
-          className="text-blue-600 hover:text-blue-900"
+          className="text-blue-400 hover:text-blue-300"
         >
           <PencilIcon className="h-5 w-5" />
         </button>
         <button
           onClick={() => setDeleteConfirmation({ show: true, type: 'expense', id: expense.id })}
-          className="text-red-600 hover:text-red-900"
+          className="text-red-400 hover:text-red-300"
         >
           <TrashIcon className="h-5 w-5" />
         </button>
@@ -638,13 +651,13 @@ const BudgetDashboard: React.FC = () => {
       <div className="flex justify-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
         <button
           onClick={() => startEditing('income', income)}
-          className="text-blue-600 hover:text-blue-900"
+          className="text-blue-400 hover:text-blue-300"
         >
           <PencilIcon className="h-5 w-5" />
         </button>
         <button
           onClick={() => setDeleteConfirmation({ show: true, type: 'income', id: income.id })}
-          className="text-red-600 hover:text-red-900"
+          className="text-red-400 hover:text-red-300"
         >
           <TrashIcon className="h-5 w-5" />
         </button>
@@ -702,18 +715,159 @@ const BudgetDashboard: React.FC = () => {
     setEditingCategoryId(null);
   };
 
+  // Add category icons mapping
+  const categoryIcons: { [key: string]: string } = {
+    'Housing': '🏠',
+    'Transportation': '🚗',
+    'Food': '🍽️',
+    'Utilities': '⚡',
+    'Insurance': '🛡️',
+    'Healthcare': '🏥',
+    'Entertainment': '🎮',
+    'Shopping': '🛍️',
+    'Melany': '👩',
+    'Savings': '💰',
+    'Other': '📌'
+  };
+
+  // Update the chart options to ensure proper display
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      y: {
+        beginAtZero: true,
+        title: {
+          display: true,
+          text: 'Amount ($)'
+        }
+      },
+      x: {
+        ticks: {
+          autoSkip: false,
+          maxRotation: 45,
+          minRotation: 45
+        }
+      }
+    },
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+      title: {
+        display: true,
+        text: `Category Spending for ${formatMonthDisplay(selectedMonth)}`
+      },
+    }
+  };
+
+  // Update the chart data configuration
+  const chartData = {
+    labels: categories,
+    datasets: [
+      {
+        label: 'Budget',
+        data: categories.map(category => currentMonthBudget.categoryBudgets[category] || 0),
+        backgroundColor: 'rgba(59, 130, 246, 0.5)', // blue
+      },
+      {
+        label: 'Actual',
+        data: categories.map(category => categorySpending[category] || 0),
+        backgroundColor: 'rgba(239, 68, 68, 0.5)', // red
+      },
+    ],
+  };
+
+  // Add pagination controls component
+  const PaginationControls = () => (
+    <div className="flex items-center justify-between px-4 py-3 bg-gray-800 border-t border-gray-700 sm:px-6">
+      <div className="flex justify-between flex-1 sm:hidden">
+        <button
+          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          disabled={currentPage === 1}
+          className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-300 bg-gray-800 border border-gray-700 rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Previous
+        </button>
+        <button
+          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+          disabled={currentPage === totalPages}
+          className="relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium text-gray-300 bg-gray-800 border border-gray-700 rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Next
+        </button>
+      </div>
+      <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm text-gray-300">
+            Showing <span className="font-medium">{((currentPage - 1) * transactionsPerPage) + 1}</span> to{' '}
+            <span className="font-medium">
+              {Math.min(currentPage * transactionsPerPage, filteredAndSortedExpenses.length)}
+            </span> of{' '}
+            <span className="font-medium">{filteredAndSortedExpenses.length}</span> results
+          </p>
+        </div>
+        <div>
+          <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-700 bg-gray-800 text-sm font-medium text-gray-300 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="sr-only">Previous</span>
+              <ChevronLeftIcon className="h-5 w-5" aria-hidden="true" />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <button
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                  currentPage === page
+                    ? 'z-10 bg-blue-500 border-blue-500 text-blue-200'
+                    : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-700 bg-gray-800 text-sm font-medium text-gray-300 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="sr-only">Next</span>
+              <ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </nav>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-900">
       {/* Header */}
-      <header className="bg-blue-600 text-white p-6 shadow-md">
+      <header className="bg-blue-800 text-white p-6 shadow-md">
         <div className="container mx-auto">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold">{"Corey's Budget Dashboard"}</h1>
             <div className="flex items-center space-x-4">
+              <button 
+                onClick={() => setShowIncomeModal(true)}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+              >
+                Add Income
+              </button>
+              <button 
+                onClick={() => setShowExpenseModal(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+              >
+                Add Expense
+              </button>
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-white text-gray-900 rounded-md px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-blue-600 focus:ring-white"
+                className="bg-gray-800 text-white rounded-md px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-blue-800 focus:ring-white border border-gray-700"
               >
                 {months.map((month) => (
                   <option key={month} value={month}>
@@ -731,34 +885,28 @@ const BudgetDashboard: React.FC = () => {
         {/* Summary cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           {/* Income Card */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-medium text-gray-700 mb-2">Income</h2>
-            <p className="text-3xl font-bold text-gray-800">
+          <div className="bg-gray-800 rounded-lg shadow p-6 border border-gray-700">
+            <h2 className="text-lg font-medium text-gray-200 mb-2">Income</h2>
+            <p className="text-3xl font-bold text-white">
               {budgetSummary.income > 0 ? `$${budgetSummary.income.toLocaleString()}` : "$0.00"}
             </p>
             <div className="flex justify-between items-center mt-4">
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-gray-400">
                 {budgetSummary.income > 0 ? "Monthly total" : "No income added yet"}
               </span>
-              <button 
-                onClick={() => setShowIncomeModal(true)}
-                className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm hover:bg-green-200"
-              >
-                Add Income
-              </button>
             </div>
           </div>
-          
+
           {/* Budget Card */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-gray-800 rounded-lg shadow p-6 border border-gray-700">
             <div className="flex justify-between items-start mb-2">
-              <h2 className="text-lg font-medium text-gray-700">Budget</h2>
+              <h2 className="text-lg font-medium text-gray-200">Budget</h2>
               <button
                 onClick={() => {
                   setIsEditingMonthlyBudget(true);
                   setTempBudgetValue(budgetSummary.regularBudget.toString());
                 }}
-                className="text-sm text-blue-600 hover:text-blue-800"
+                className="text-sm text-blue-400 hover:text-blue-300"
               >
                 Edit
               </button>
@@ -769,108 +917,155 @@ const BudgetDashboard: React.FC = () => {
                   type="number"
                   value={tempBudgetValue}
                   onChange={(e) => setTempBudgetValue(e.target.value)}
-                  className="w-full text-3xl font-bold text-gray-800 border-b border-gray-300 focus:border-blue-500 focus:ring-0"
+                  className="w-full text-3xl font-bold text-white bg-gray-700 border-b border-gray-600 focus:border-blue-500 focus:ring-0"
                   autoFocus
                   onFocus={(e) => e.target.select()}
                 />
                 <div className="flex justify-end space-x-2">
                   <button
                     onClick={() => setIsEditingMonthlyBudget(false)}
-                    className="text-sm text-gray-600 hover:text-gray-800"
+                    className="text-sm text-gray-400 hover:text-gray-300"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={() => handleMonthlyBudgetUpdate(Number(tempBudgetValue))}
-                    className="text-sm text-blue-600 hover:text-blue-800"
+                    className="text-sm text-blue-400 hover:text-blue-300"
                   >
                     Save
                   </button>
                 </div>
               </div>
             ) : (
-              <p className="text-3xl font-bold text-gray-800">${budgetSummary.regularBudget.toLocaleString()}</p>
+              <p className="text-3xl font-bold text-white">${budgetSummary.regularBudget.toLocaleString()}</p>
             )}
-            <p className="text-sm text-gray-500 mt-4">Total allocated for {formatMonthDisplay(selectedMonth).split(' ')[0]}</p>
+            <p className="text-sm text-gray-400 mt-4">Total allocated for {formatMonthDisplay(selectedMonth).split(' ')[0]}</p>
           </div>
-          
+
           {/* Spent Card */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-medium text-gray-700 mb-2">Spent</h2>
-            <p className="text-3xl font-bold text-gray-800">${budgetSummary.regularSpent.toLocaleString()}</p>
+          <div className="bg-gray-800 rounded-lg shadow p-6 border border-gray-700">
+            <h2 className="text-lg font-medium text-gray-200 mb-2">Spent</h2>
+            <p className="text-3xl font-bold text-white">${budgetSummary.regularSpent.toLocaleString()}</p>
             <div className="mt-4">
-              <div className="w-full bg-gray-200 rounded-full h-2.5">
+              <div className="w-full bg-gray-700 rounded-full h-2.5">
                 <div 
                   className={`h-2.5 rounded-full ${budgetSummary.spendingPercentage > 90 ? 'bg-red-500' : budgetSummary.spendingPercentage > 75 ? 'bg-yellow-500' : 'bg-green-500'}`} 
                   style={{ width: `${Math.min(budgetSummary.spendingPercentage, 100)}%` }}
                 ></div>
               </div>
-              <p className="text-sm text-gray-500 mt-1">{budgetSummary.spendingPercentage.toFixed(1)}% of budget</p>
+              <p className="text-sm text-gray-400 mt-1">{budgetSummary.spendingPercentage.toFixed(1)}% of budget</p>
             </div>
           </div>
-          
+
           {/* Remaining Card */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-medium text-gray-700 mb-2">Remaining</h2>
-            <p className={`text-3xl font-bold ${regularRemaining >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          <div className="bg-gray-800 rounded-lg shadow p-6 border border-gray-700">
+            <h2 className="text-lg font-medium text-gray-200 mb-2">Remaining</h2>
+            <p className={`text-3xl font-bold ${regularRemaining >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               ${Math.abs(regularRemaining).toLocaleString()}
             </p>
-            <p className="text-sm text-gray-500 mt-4">
+            <p className="text-sm text-gray-400 mt-4">
               {regularRemaining >= 0 ? 'Available to spend' : 'Over budget'}
             </p>
           </div>
         </div>
         
         {/* Budget vs Actual Chart */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-lg font-medium text-gray-700 mb-4">Budget vs. Actual Spending</h2>
+        <div className="bg-gray-800 rounded-lg shadow p-6 mb-8 border border-gray-700">
+          <h2 className="text-lg font-medium text-gray-200 mb-4">Budget vs. Actual Spending</h2>
           <div className="h-96">
-            <Bar
-              data={{
-                labels: categories,
-                datasets: [
-                  {
-                    label: 'Budget',
-                    data: categories.map(category => currentMonthBudget.categoryBudgets[category] || 0),
-                    backgroundColor: 'rgba(59, 130, 246, 0.5)', // blue
-                  },
-                  {
-                    label: 'Actual',
-                    data: categories.map(category => categorySpending[category] || 0),
-                    backgroundColor: 'rgba(239, 68, 68, 0.5)', // red
-                  },
-                ],
-              }}
+            <Bar 
+              data={chartData} 
               options={{
-                responsive: true,
-                maintainAspectRatio: false,
+                ...chartOptions,
                 scales: {
+                  ...chartOptions.scales,
                   y: {
-                    beginAtZero: true,
-                    title: {
-                      display: true,
-                      text: 'Amount ($)'
+                    ...chartOptions.scales.y,
+                    grid: {
+                      color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    ticks: {
+                      color: '#9CA3AF'
                     }
                   },
                   x: {
+                    ...chartOptions.scales.x,
+                    grid: {
+                      color: 'rgba(255, 255, 255, 0.1)'
+                    },
                     ticks: {
-                      autoSkip: false,
-                      maxRotation: 45,
-                      minRotation: 45
+                      color: '#9CA3AF'
                     }
                   }
                 },
                 plugins: {
+                  ...chartOptions.plugins,
                   legend: {
-                    position: 'top' as const,
-                  },
-                  title: {
-                    display: true,
-                    text: `Category Spending for ${formatMonthDisplay(selectedMonth)}`
-                  },
+                    ...chartOptions.plugins.legend,
+                    labels: {
+                      color: '#9CA3AF'
+                    }
+                  }
                 }
-              }}
+              }} 
             />
+          </div>
+        </div>
+
+        {/* Credit Card Section */}
+        <div className="bg-gray-800 rounded-lg shadow p-6 mb-8 border border-gray-700">
+          <h2 className="text-lg font-medium text-gray-200 mb-4">Credit Card Tracking</h2>
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead className="bg-gray-700">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Card</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase">Limit</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase">Spent</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase">Available</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase">Statement Date</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase">Due Date</th>
+                </tr>
+              </thead>
+              <tbody className="bg-gray-800 divide-y divide-gray-700">
+                {creditCards.map((card, index) => {
+                  const monthlySpent = creditCardSpending[card.name] || 0;
+                  const available = card.limit - monthlySpent;
+                  const utilizationPercentage = (monthlySpent / card.limit) * 100;
+                  
+                  return (
+                    <tr key={index} className="hover:bg-gray-700">
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-200">{card.name}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-300">${card.limit.toLocaleString()}</td>
+                      <td className={`px-4 py-3 whitespace-nowrap text-sm text-right ${utilizationPercentage > 80 ? 'text-red-400' : 'text-gray-300'}`}>
+                        ${monthlySpent.toFixed(2)}
+                        <span className="text-xs ml-1">({utilizationPercentage.toFixed(1)}%)</span>
+                      </td>
+                      <td className={`px-4 py-3 whitespace-nowrap text-sm text-right ${available < 100 ? 'text-red-400' : 'text-green-400'}`}>
+                        ${available.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-300">{card.statementDate}<sup>th</sup></td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-300">{card.dueDate}<sup>th</sup></td>
+                    </tr>
+                  );
+                })}
+                <tr className="bg-gray-700 font-medium">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-200">Total</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-200">
+                    ${creditCards.reduce((sum, card) => sum + card.limit, 0).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-red-400">
+                    ${Object.values(creditCardSpending).reduce((sum, spent) => sum + spent, 0).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-green-400">
+                    ${(creditCards.reduce((sum, card) => sum + card.limit, 0) - 
+                       Object.values(creditCardSpending).reduce((sum, spent) => sum + spent, 0)).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3"></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -888,14 +1083,15 @@ const BudgetDashboard: React.FC = () => {
               'bg-green-500';
             
             return (
-              <div key={category} className="bg-white rounded-lg shadow p-4">
+              <div key={category} className="bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 p-4 border border-gray-700">
                 <div className="flex justify-between items-center mb-3">
                   <div className="flex items-center space-x-2">
-                    <h3 className="text-base font-medium text-gray-700">{category}</h3>
+                    <span className="text-xl">{categoryIcons[category] || '📌'}</span>
+                    <h3 className="text-base font-medium text-gray-200">{category}</h3>
                     <span className={`px-2 py-0.5 text-xs rounded-full ${
-                      percentage > 100 ? 'bg-red-100 text-red-800' :
-                      percentage > 80 ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-green-100 text-green-800'
+                      percentage > 100 ? 'bg-red-900 text-red-200' :
+                      percentage > 80 ? 'bg-yellow-900 text-yellow-200' :
+                      'bg-green-900 text-green-200'
                     }`}>
                       {percentage.toFixed(0)}%
                     </span>
@@ -906,7 +1102,7 @@ const BudgetDashboard: React.FC = () => {
                         setEditingCategoryId(category);
                         setTempBudgetValue(budget.toString());
                       }}
-                      className="text-xs text-blue-600 hover:text-blue-800"
+                      className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
                     >
                       Edit
                     </button>
@@ -914,41 +1110,42 @@ const BudgetDashboard: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="relative h-2 bg-gray-700 rounded-full overflow-hidden">
                     <div
-                      className={`h-full transition-all duration-500 ${statusColor}`}
+                      className={`absolute inset-y-0 left-0 transition-all duration-500 ${statusColor}`}
                       style={{
                         width: `${Math.min(percentage, 100)}%`
                       }}
                     />
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <span className="text-gray-500">Spent</span>
-                      <p className="font-medium text-gray-900">${spent.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                      <span className="text-gray-400">Spent</span>
+                      <p className="font-medium text-gray-200">${spent.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                     </div>
                     <div className="text-right">
-                      <span className="text-gray-500">Budget</span>
+                      <span className="text-gray-400">Budget</span>
                       {isEditing ? (
                         <div className="flex items-center justify-end space-x-1">
-                          <span className="text-gray-500">$</span>
+                          <span className="text-gray-400">$</span>
                           <input
                             type="number"
                             value={tempBudgetValue}
                             onChange={(e) => setTempBudgetValue(e.target.value)}
-                            className="w-20 text-right border-b border-gray-300 focus:border-blue-500 focus:ring-0 p-0 text-xs"
+                            className="w-20 text-right bg-gray-700 border-b border-gray-600 focus:border-blue-500 focus:ring-0 p-0 text-xs text-gray-200"
                             autoFocus
                             onFocus={(e) => e.target.select()}
                           />
                         </div>
                       ) : (
-                        <p className="font-medium text-gray-900">${budget.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                        <p className="font-medium text-gray-200">${budget.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                       )}
                     </div>
                     <div>
-                      <span className="text-gray-500">Remaining</span>
-                      <p className={`font-medium ${remaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                      <span className="text-gray-400">Remaining</span>
+                      <p className={`font-medium ${remaining < 0 ? 'text-red-400' : 'text-gray-200'}`}>
                         ${remaining.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                       </p>
                     </div>
@@ -957,13 +1154,13 @@ const BudgetDashboard: React.FC = () => {
                         <div className="flex justify-end space-x-2">
                           <button
                             onClick={() => setEditingCategoryId(null)}
-                            className="text-xs text-gray-600 hover:text-gray-800"
+                            className="text-xs text-gray-400 hover:text-gray-300 transition-colors"
                           >
                             Cancel
                           </button>
                           <button
                             onClick={() => handleCategoryBudgetUpdate(category, Number(tempBudgetValue))}
-                            className="text-xs text-blue-600 hover:text-blue-800"
+                            className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
                           >
                             Save
                           </button>
@@ -977,77 +1174,20 @@ const BudgetDashboard: React.FC = () => {
           })}
         </div>
 
-        {/* Credit Card Section */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-lg font-medium text-gray-700 mb-4">Credit Card Tracking</h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Card</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Limit</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Spent</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Available</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Statement Date</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {creditCards.map((card, index) => {
-                  const monthlySpent = creditCardSpending[card.name] || 0;
-                  const available = card.limit - monthlySpent;
-                  const utilizationPercentage = (monthlySpent / card.limit) * 100;
-                  
-                  return (
-                    <tr key={index}>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-700">{card.name}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-500">${card.limit.toLocaleString()}</td>
-                      <td className={`px-4 py-3 whitespace-nowrap text-sm text-right ${utilizationPercentage > 80 ? 'text-red-600' : 'text-gray-600'}`}>
-                        ${monthlySpent.toFixed(2)}
-                        <span className="text-xs ml-1">({utilizationPercentage.toFixed(1)}%)</span>
-                      </td>
-                      <td className={`px-4 py-3 whitespace-nowrap text-sm text-right ${available < 100 ? 'text-red-600' : 'text-green-600'}`}>
-                        ${available.toFixed(2)}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-500">{card.statementDate}<sup>th</sup></td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-500">{card.dueDate}<sup>th</sup></td>
-                    </tr>
-                  );
-                })}
-                <tr className="bg-gray-50 font-medium">
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">Total</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-700">
-                    ${creditCards.reduce((sum, card) => sum + card.limit, 0).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-red-600">
-                    ${Object.values(creditCardSpending).reduce((sum, spent) => sum + spent, 0).toFixed(2)}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-green-600">
-                    ${(creditCards.reduce((sum, card) => sum + card.limit, 0) - 
-                       Object.values(creditCardSpending).reduce((sum, spent) => sum + spent, 0)).toFixed(2)}
-                  </td>
-                  <td className="px-4 py-3"></td>
-                  <td className="px-4 py-3"></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
         {/* Transactions and Alerts Sections */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Expenses Table */}
           <div className="lg:col-span-2">
             {/* Filter Section */}
             {showFilters && (
-              <div className="p-4 border-b border-gray-200 bg-gray-50">
+              <div className="p-4 border-b border-gray-700 bg-gray-800">
                 <div className="flex flex-wrap gap-4">
                   <div className="flex-1 min-w-[200px]">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <label className="block text-sm font-medium text-gray-200 mb-1">Category</label>
                     <select
                       value={expenseFilters.category}
                       onChange={(e) => setExpenseFilters(prev => ({ ...prev, category: e.target.value }))}
-                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      className="w-full rounded-md bg-gray-700 border-gray-600 text-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     >
                       <option value="">All Categories</option>
                       {categories.map(category => (
@@ -1056,11 +1196,11 @@ const BudgetDashboard: React.FC = () => {
                     </select>
                   </div>
                   <div className="flex-1 min-w-[200px]">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                    <label className="block text-sm font-medium text-gray-200 mb-1">Payment Method</label>
                     <select
                       value={expenseFilters.paymentMethod}
                       onChange={(e) => setExpenseFilters(prev => ({ ...prev, paymentMethod: e.target.value }))}
-                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      className="w-full rounded-md bg-gray-700 border-gray-600 text-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     >
                       <option value="">All Payment Methods</option>
                       {uniquePaymentMethods.map(method => (
@@ -1071,7 +1211,7 @@ const BudgetDashboard: React.FC = () => {
                   <div className="flex items-end">
                     <button
                       onClick={resetFilters}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                      className="px-4 py-2 text-sm font-medium text-gray-200 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600"
                     >
                       Reset Filters
                     </button>
@@ -1080,100 +1220,89 @@ const BudgetDashboard: React.FC = () => {
               </div>
             )}
 
-            <div className="bg-white rounded-lg shadow mb-6">
-              <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+            <div className="bg-gray-800 rounded-lg shadow mb-6 border border-gray-700">
+              <div className="p-6 border-b border-gray-700 flex justify-between items-center">
                 <div className="flex items-center space-x-4">
-                  <h2 className="text-lg font-medium text-gray-700">Recent Expenses</h2>
+                  <h2 className="text-lg font-medium text-gray-200">Recent Expenses</h2>
                   <button
                     onClick={() => setShowFilters(!showFilters)}
-                    className="flex items-center space-x-1 text-gray-600 hover:text-gray-900"
+                    className="flex items-center space-x-1 text-gray-400 hover:text-gray-300"
                   >
                     <FunnelIcon className="h-5 w-5" />
                     <span className="text-sm">Filters</span>
                   </button>
                 </div>
-                <button 
-                  onClick={() => setShowExpenseModal(true)}
-                  className="bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-4 py-2"
-                >
-                  Add Expense
-                </button>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-700">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">
                         {renderSortButton('expense', 'Date', 'date')}
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">
                         {renderSortButton('expense', 'Category', 'category')}
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">
                         {renderSortButton('expense', 'Description', 'description')}
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">
                         {renderSortButton('expense', 'Payment Method', 'paymentMethod')}
                       </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase">
                         {renderSortButton('expense', 'Amount', 'amount')}
                       </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredAndSortedExpenses.map(expense => (
-                      <tr key={expense.id} className="group hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.description}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.paymentMethod}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-red-600">-${expense.amount.toFixed(2)}</td>
+                  <tbody className="bg-gray-800 divide-y divide-gray-700">
+                    {paginatedExpenses.map(expense => (
+                      <tr key={expense.id} className="group hover:bg-gray-700">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{expense.date}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{expense.category}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{expense.description}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{expense.paymentMethod}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-red-400">-${expense.amount.toFixed(2)}</td>
                         {renderExpenseActions(expense)}
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              <PaginationControls />
             </div>
             
             {/* Income Table */}
-            <div className="bg-white rounded-lg shadow">
-              <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-                <h2 className="text-lg font-medium text-gray-700">Income History</h2>
-                <button 
-                  onClick={() => setShowIncomeModal(true)}
-                  className="bg-green-500 hover:bg-green-600 text-white rounded-lg px-4 py-2"
-                >
-                  Add Income
-                </button>
+            <div className="bg-gray-800 rounded-lg shadow border border-gray-700">
+              <div className="p-6 border-b border-gray-700">
+                <h2 className="text-lg font-medium text-gray-200">Income History</h2>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-700">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">
                         {renderSortButton('income', 'Date', 'date')}
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">
                         {renderSortButton('income', 'Source', 'source')}
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">
                         {renderSortButton('income', 'Description', 'description')}
                       </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase">
                         {renderSortButton('income', 'Amount', 'amount')}
                       </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-gray-800 divide-y divide-gray-700">
                     {sortedIncome.map(income => (
-                      <tr key={income.id} className="group hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{income.date}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{income.source}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{income.description}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-green-600">+${income.amount.toFixed(2)}</td>
+                      <tr key={income.id} className="group hover:bg-gray-700">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{income.date}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{income.source}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{income.description}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-green-400">+${income.amount.toFixed(2)}</td>
                         {renderIncomeActions(income)}
                       </tr>
                     ))}
@@ -1184,21 +1313,21 @@ const BudgetDashboard: React.FC = () => {
           </div>
           
           {/* Alerts */}
-          <div className="lg:col-span-1 bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-medium text-gray-700 mb-4">Budget Alerts</h2>
+          <div className="lg:col-span-1 bg-gray-800 rounded-lg shadow p-6 border border-gray-700">
+            <h2 className="text-lg font-medium text-gray-200 mb-4">Budget Alerts</h2>
             {alerts.length > 0 ? (
               <div className="space-y-4">
                 {alerts.map(alert => (
                   <div 
                     key={alert.id}
-                    className={`p-3 rounded-lg ${alert.type === 'danger' ? 'bg-red-50' : 'bg-yellow-50'}`}
+                    className={`p-3 rounded-lg ${alert.type === 'danger' ? 'bg-red-900/50' : 'bg-yellow-900/50'}`}
                   >
                     <div className="flex">
                       <div className="ml-3">
-                        <h3 className={`text-sm font-medium ${alert.type === 'danger' ? 'text-red-800' : 'text-yellow-800'}`}>
+                        <h3 className={`text-sm font-medium ${alert.type === 'danger' ? 'text-red-200' : 'text-yellow-200'}`}>
                           {alert.category}
                         </h3>
-                        <div className={`text-sm ${alert.type === 'danger' ? 'text-red-700' : 'text-yellow-700'}`}>
+                        <div className={`text-sm ${alert.type === 'danger' ? 'text-red-300' : 'text-yellow-300'}`}>
                           {alert.message}
                         </div>
                       </div>
@@ -1208,38 +1337,38 @@ const BudgetDashboard: React.FC = () => {
               </div>
             ) : (
               <div className="text-center py-8">
-                <p className="text-gray-600">{"You're on track with all your budget categories!"}</p>
+                <p className="text-gray-400">{"You're on track with all your budget categories!"}</p>
               </div>
             )}
             
             {/* Month-to-Date Summary */}
-            <div className="mt-8 pt-6 border-t border-gray-200">
-              <h2 className="text-lg font-medium text-gray-700 mb-4">March Summary</h2>
+            <div className="mt-8 pt-6 border-t border-gray-700">
+              <h2 className="text-lg font-medium text-gray-200 mb-4">March Summary</h2>
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Total spent:</span>
-                  <span className="text-sm font-medium">${budgetSummary.regularSpent.toFixed(2)}</span>
+                  <span className="text-sm text-gray-400">Total spent:</span>
+                  <span className="text-sm font-medium text-gray-200">${budgetSummary.regularSpent.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Budget remaining:</span>
-                  <span className={`text-sm font-medium ${regularRemaining >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className="text-sm text-gray-400">Budget remaining:</span>
+                  <span className={`text-sm font-medium ${regularRemaining >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     ${Math.abs(regularRemaining).toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Budget used:</span>
-                  <span className="text-sm font-medium">{budgetSummary.spendingPercentage.toFixed(1)}%</span>
+                  <span className="text-sm text-gray-400">Budget used:</span>
+                  <span className="text-sm font-medium text-gray-200">{budgetSummary.spendingPercentage.toFixed(1)}%</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Credit card available:</span>
-                  <span className="text-sm font-medium">
+                  <span className="text-sm text-gray-400">Credit card available:</span>
+                  <span className="text-sm font-medium text-gray-200">
                     ${(creditCards.reduce((sum, card) => sum + card.limit, 0) - 
                        Object.values(creditCardSpending).reduce((sum, spent) => sum + spent, 0)).toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Income needed:</span>
-                  <span className="text-sm font-medium">${(budgetSummary.regularSpent - budgetSummary.income > 0 ? budgetSummary.regularSpent - budgetSummary.income : 0).toFixed(2)}</span>
+                  <span className="text-sm text-gray-400">Income needed:</span>
+                  <span className="text-sm font-medium text-gray-200">${(budgetSummary.regularSpent - budgetSummary.income > 0 ? budgetSummary.regularSpent - budgetSummary.income : 0).toFixed(2)}</span>
                 </div>
               </div>
             </div>
